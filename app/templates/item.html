@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ item.title }} — Подарки для Госпожи</title>
+
+  <!-- Стили -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+
+  <!-- Фавикон -->
+  <link rel="icon" type="image/png" href="/static/favicon/favicon.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+
+<body class="velvet-bg">
+  <div class="container">
+
+    <a href="/" class="back-link">← Назад к витрине</a>
+
+    <h1 class="title">{{ item.title }}</h1>
+    <p class="subtitle">Подарок для Госпожи</p>
+
+    <div class="card big-card">
+      <div class="card-image-big">
+        <img src="{{ item.image }}" alt="{{ item.title }}">
+      </div>
+      <div class="card-price">{{ item.price }} ₽</div>
+    </div>
+
+    <h2 class="section-title">Реквизиты для перевода (Совкомбанк)</h2>
+
+    <p>
+      Получатель: Гиоева Лана Руслановна <br>
+      Банк: Совкомбанк <br>
+      СПБ по номеру телефона: +7 918 824 46 86 <br>
+      Назначение: «Подарок для Госпожи»
+    </p>
+
+    <h2 class="section-title">Загрузка чека (PDF)</h2>
+
+    <form action="/upload_receipt" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="item_id" value="{{ item.id }}">
+      <p>Прикрепи чек в формате PDF:</p>
+
+      <input type="file" name="file" accept="application/pdf" required />
+      <button type="submit" class="gold-btn">Отправить чек</button>
+    </form>
+
+  </div>
+</body>
+</html>

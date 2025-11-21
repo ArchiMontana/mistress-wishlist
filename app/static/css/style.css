@@ -1,0 +1,247 @@
+/* === Общий фон === */
+body.velvet-bg {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #f7f0e9;
+
+  /* Осветлённый бархатный фон + лёгкое затемнение */
+  background:
+    linear-gradient(
+      rgba(30, 0, 0, 0.35),
+      rgba(20, 0, 0, 0.45)
+    ),
+    url("/static/img/af_bg.jpg") no-repeat center center fixed;
+  background-size: cover;
+
+  /* Делает как на оригинале — ярче и контрастнее */
+  filter: brightness(1.12) contrast(1.08);
+
+  min-height: 100vh;
+}
+
+
+/* === Контейнер === */
+.container {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* === Логотип и шапка === */
+.header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* === Логотип и шапка === */
+.header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* обёртка лого для анимации сияния и блика */
+.logo-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 4px auto 10px;
+}
+
+/* сам логотип */
+.logo {
+  width: 140px;
+  max-width: 70%;
+  display: block;
+  margin: 0 auto;
+
+  /* лёгкое «дыхание» и свечение */
+  animation: logoPulse 4.5s ease-in-out infinite;
+}
+
+/* бегущий блик по лого */
+/* === Логотип === */
+.logo {
+  width: 180px;
+  max-width: 85%;
+  display: block;
+  margin: 4px auto 10px;
+
+  /* плавное дыхание + мягкое сияние */
+  animation: logoPulse 4.5s ease-in-out infinite;
+}
+
+/* дыхание + лёгкое золотое свечение */
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(255, 220, 150, 0.45));
+  }
+  50% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 16px rgba(255, 230, 170, 0.9));
+  }
+}
+
+.title {
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+
+  /* золотой металлический градиент */
+  background: linear-gradient(135deg,
+      #fff6d0 0%,
+      #ffdb7a 25%,
+      #d88c28 50%,
+      #ffcc66 75%,
+      #fff2c4 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  /* металлические тени для объёма */
+  text-shadow:
+    0px 1px 1px rgba(255, 235, 160, 0.7),
+    0px 2px 2px rgba(180, 110, 40, 0.6),
+    0px 3px 4px rgba(60, 20, 0, 0.45);
+}
+
+.subtitle {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+/* === Плитка подарков === */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+
+  background: rgba(0, 0, 0, 0.68);
+  border-radius: 14px;
+  padding: 10px 10px 12px;
+
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+
+  transition: transform 0.12s ease-out,
+              box-shadow 0.12s ease-out,
+              background 0.12s ease-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.card-image {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.card-title {
+  font-size: 13px;
+  min-height: 32px;
+}
+
+.card-price {
+  font-weight: 600;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+/* === Золотая кнопка === */
+.gold-btn {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd15c, #c88b2f);
+  color: #300000;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+  transition: transform 0.08s ease-out,
+              box-shadow 0.08s ease-out;
+}
+
+.gold-btn:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+}
+
+.gold-btn:active {
+  transform: scale(0.97) translateY(1px);
+}
+
+/* === Страница подарка === */
+.back-link {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #f7f0e9;
+  text-decoration: none;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+.back-link:hover {
+  opacity: 1;
+}
+
+.big-card {
+  margin: 8px 0 16px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 16px;
+  padding: 16px 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.75);
+}
+
+.card-image-big {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* немного подправим форму на странице подарка */
+form {
+  margin-top: 8px;
+  text-align: left;
+}
+
+form p {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+input[type="file"] {
+  width: 100%;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.card-image img {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+
+.card-image-big img {
+  width: 100%;
+  border-radius: 14px;
+  display: block;
+}

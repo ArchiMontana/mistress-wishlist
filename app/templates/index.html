@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Подарки для Госпожи</title>
+
+  <!-- Стили -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+
+  <!-- Фавикон -->
+  <link rel="icon" type="image/png" href="/static/favicon/favicon.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+
+<body class="velvet-bg">
+  <div class="container">
+
+    <header class="header">
+  <div class="logo-wrap">
+    <img src="/static/img/af_logo.png" class="logo" alt="AF Logo" />
+  </div>
+  <h1 class="title">ПОДАРКИ ДЛЯ ГОСПОЖИ</h1>
+  <p class="subtitle">Выбери дар.</p>
+</header>
+
+    <section class="grid">
+      {% for item in items %}
+      <a href="/item/{{ item.id }}" class="card">
+        <div class="card-image">
+          <img src="{{ item.image }}" alt="{{ item.title }}">
+        </div>
+        <div class="card-title">{{ item.title }}</div>
+        <div class="card-price">{{ item.price }} ₽</div>
+        <button class="gold-btn">Подарить</button>
+      </a>
+      {% endfor %}
+    </section>
+
+  </div>
+</body>
+</html>
