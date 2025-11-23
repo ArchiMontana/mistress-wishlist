@@ -32,8 +32,8 @@ ITEMS = [
     },
     {
         "id": 4,
-        "title": "Трусы эротические бразильяна, чёрные с молнией",
-        "price": "840",
+        "title": "Корсет вечерний утягивающий кружевной, ByAsso",
+        "price": "5 002",
         "image": "/static/items/item_4.jpg",
     },
     {
@@ -50,8 +50,8 @@ ITEMS = [
     },
     {
         "id": 7,
-        "title": "Туфли на каблуке, вечерние лодочки, красные",
-        "price": "2 708",
+        "title": "Ботфорты зима высокие на платформе, CYJP",
+        "price": "4 340",
         "image": "/static/items/item_7.jpg",
     },
     {
@@ -86,14 +86,14 @@ ITEMS = [
     },
     {
         "id": 13,
-        "title": "Колье из жемчуга, бижутерия",
-        "price": "5 384",
+        "title": "Жидкий вибратор, LOVESHOT, soft, 10 мл, HYDROP",
+        "price": "3 379",
         "image": "/static/items/item_13.jpg",
     },
     {
         "id": 14,
-        "title": "Боди красное глянцевое с доступом",
-        "price": "1 845",
+        "title": "Poppers Возбудитель усилитель оргазма BDSM red 10 мл",
+        "price": "626",
         "image": "/static/items/item_14.jpg",
     },
 ]
