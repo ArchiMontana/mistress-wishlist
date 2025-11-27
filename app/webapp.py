@@ -1,7 +1,15 @@
-from fastapi import FastAPI, Request, UploadFile, File, Form
+from pathlib import Path
+import time
+import json
+
+import requests
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+from .config import BOT_TOKEN, MOD_CHAT_ID
+from .storage import get_item_status, set_item_status
 
 app = FastAPI()
 
@@ -9,6 +17,9 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+# Папка для чеков
+RECEIPTS_DIR = Path("data") / "receipts"
+RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # === 14 карточек магазина ===
 ITEMS = [
@@ -99,30 +110,163 @@ ITEMS = [
 ]
 
 
+def get_item_by_id(item_id: int):
+    for i in ITEMS:
+        if i["id"] == item_id:
+            return i
+    return None
+
+
 # Главная страница
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    # Подмешиваем статус к каждому товару
+    items_with_status = []
+    for item in ITEMS:
+        status = get_item_status(item["id"])
+        items_with_status.append({**item, "status": status})
+
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "items": ITEMS},
+        {"request": request, "items": items_with_status},
     )
 
 
 # Страница товара
 @app.get("/item/{item_id}", response_class=HTMLResponse)
 async def item_page(item_id: int, request: Request):
-    item = next(i for i in ITEMS if i["id"] == item_id)
+    item = get_item_by_id(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+
+    status = get_item_status(item_id)
+
     return templates.TemplateResponse(
         "item.html",
-        {"request": request, "item": item},
+        {
+            "request": request,
+            "item": item,
+            "status": status,
+            "message": None,
+        },
     )
 
 
 # Обработка загрузки чека
-@app.post("/upload_receipt")
+@app.post("/upload_receipt", response_class=HTMLResponse)
 async def upload_receipt(
+    request: Request,
     item_id: str = Form(...),
     file: UploadFile = File(...),
 ):
-    # Позже — отправка чека в мод-чат
-    return {"status": "ok", "item_id": item_id, "filename": file.filename}
+    # парсим id
+    try:
+        item_id_int = int(item_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Некорректный ID товара")
+
+    item = get_item_by_id(item_id_int)
+    if not item:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+
+    current_status = get_item_status(item_id_int)
+
+    # если уже в процессе / подарен — не даём второй раз
+    if current_status == "pending":
+        return templates.TemplateResponse(
+            "item.html",
+            {
+                "request": request,
+                "item": item,
+                "status": current_status,
+                "message": "По этому подарку уже загружен чек, сейчас идёт проверка оплаты.",
+            },
+        )
+
+    if current_status == "gifted":
+        return templates.TemplateResponse(
+            "item.html",
+            {
+                "request": request,
+                "item": item,
+                "status": current_status,
+                "message": "Этот подарок уже отмечен как подаренный. "
+                           "Выбери, пожалуйста, другой дар.",
+            },
+        )
+
+    # проверяем тип файла
+    if file.content_type != "application/pdf":
+        status = get_item_status(item_id_int)
+        return templates.TemplateResponse(
+            "item.html",
+            {
+                "request": request,
+                "item": item,
+                "status": status,
+                "message": "Пожалуйста, прикрепи чек в формате PDF.",
+            },
+        )
+
+    # сохраняем чек на диск
+    ts = int(time.time())
+    safe_name = file.filename.replace(" ", "_")
+    filename = f"item_{item_id_int}_{ts}_{safe_name}"
+    filepath = RECEIPTS_DIR / filename
+
+    content = await file.read()
+    with filepath.open("wb") as f:
+        f.write(content)
+
+    # ставим статус pending (резерв)
+    set_item_status(item_id_int, "pending")
+    new_status = get_item_status(item_id_int)
+
+    # отправляем в мод-чат
+    if BOT_TOKEN and MOD_CHAT_ID:
+        try:
+            telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+
+            caption = (
+                f"Новый чек по подарку #{item_id_int}\n"
+                f"{item['title']}\n\n"
+                f"Статус: на проверке ✅"
+            )
+
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "✅ Подтвердить оплату",
+                            "callback_data": f"mod:confirm:{item_id_int}",
+                        },
+                        {
+                            "text": "❌ Отклонить",
+                            "callback_data": f"mod:reject:{item_id_int}",
+                        },
+                    ]
+                ]
+            }
+
+            with filepath.open("rb") as f:
+                files = {"document": (filename, f, "application/pdf")}
+                data = {
+                    "chat_id": str(MOD_CHAT_ID),
+                    "caption": caption,
+                    "reply_markup": json.dumps(keyboard, ensure_ascii=False),
+                }
+                requests.post(telegram_api_url, data=data, files=files, timeout=20)
+        except Exception as e:
+            print(f"Ошибка отправки чека в мод-чат: {e}")
+
+    # возвращаем HTML-страницу товара, а НЕ JSON
+    return templates.TemplateResponse(
+        "item.html",
+        {
+            "request": request,
+            "item": item,
+            "status": new_status,
+            "message": "Чек загружен и отправлен на проверку. "
+                       "Статус подарка обновится после решения администратора.",
+        },
+    )

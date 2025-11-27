@@ -21,6 +21,12 @@
     <h1 class="title">{{ item.title }}</h1>
     <p class="subtitle">Подарок для Госпожи</p>
 
+    {% if message %}
+      <div class="info-banner">
+        {{ message }}
+      </div>
+    {% endif %}
+
     <div class="card big-card">
       <div class="card-image-big">
         <img src="{{ item.image }}" alt="{{ item.title }}">
@@ -37,15 +43,31 @@
       Назначение: «Подарок для Госпожи»
     </p>
 
-    <h2 class="section-title">Загрузка чека (PDF)</h2>
+    {% if status == "available" %}
+      <h2 class="section-title">Загрузка чека (PDF)</h2>
 
-    <form action="/upload_receipt" method="post" enctype="multipart/form-data">
-      <input type="hidden" name="item_id" value="{{ item.id }}">
-      <p>Прикрепи чек в формате PDF:</p>
+      <form action="/upload_receipt" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="item_id" value="{{ item.id }}">
+        <p>Прикрепи чек в формате PDF:</p>
 
-      <input type="file" name="file" accept="application/pdf" required />
-      <button type="submit" class="gold-btn">Отправить чек</button>
-    </form>
+        <input type="file" name="file" accept="application/pdf" required />
+        <button type="submit" class="gold-btn">Отправить чек</button>
+      </form>
+
+    {% elif status == "pending" %}
+      <h2 class="section-title">Чек уже отправлен на проверку</h2>
+      <p>
+        По этому подарку уже загружен чек, и он сейчас на проверке у модерации.
+        Дождись результата или выбери другой подарок на витрине.
+      </p>
+
+    {% elif status == "gifted" %}
+      <h2 class="section-title">Подарок уже подарен 🎁</h2>
+      <p>
+        Этот подарок уже отмечен как подаренный. Спасибо за внимание к Госпоже —
+        можешь выбрать другой вариант на витрине.
+      </p>
+    {% endif %}
 
   </div>
 </body>

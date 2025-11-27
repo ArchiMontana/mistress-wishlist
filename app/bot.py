@@ -1,10 +1,12 @@
 from pathlib import Path
+
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     KeyboardButton,
+    WebAppInfo,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -16,32 +18,39 @@ from telegram.ext import (
 )
 
 from .config import BOT_TOKEN, BASE_URL
+from .storage import set_item_status
 
-LOGO_PATH = Path("app/static/img/af_logo.png")
+# Базовая папка этого модуля (app/)
+BASE_DIR = Path(__file__).resolve().parent
+LOGO_PATH = BASE_DIR / "static" / "img" / "af_logo.png"
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /start — логотип + запрос 18+."""
     chat_id = update.effective_chat.id
 
-    # Лого
+    # 1) Логотип
     if LOGO_PATH.exists():
         try:
             with open(LOGO_PATH, "rb") as f:
                 await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=f,
-                    caption="Подарки для Госпожи"
+                    caption="Подарки для Госпожи",
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Ошибка отправки логотипа: {e}")
+    else:
+        print(f"Логотип не найден по пути: {LOGO_PATH}")
 
-    # 18+
+    # 2) Кнопки 18+
     kb_18 = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("Мне есть 18+ ✅", callback_data="age:yes")],
             [InlineKeyboardButton("Мне нет 18 ❌", callback_data="age:no")],
         ]
     )
+
     await update.message.reply_text(
         "Этот бот содержит материалы 18+. Подтверди возраст.",
         reply_markup=kb_18,
@@ -49,6 +58,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def age_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка нажатия на кнопки 18+."""
     q = update.callback_query
     await q.answer()
 
@@ -58,29 +68,80 @@ async def age_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await q.edit_message_text("Доступ подтверждён ✅")
 
-    # Большая кнопка Старт
+    # Большая кнопка «🔥 Старт» внизу экрана
     start_kb = ReplyKeyboardMarkup(
         [[KeyboardButton("🔥 Старт")]],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
+
     await context.bot.send_message(
         chat_id=q.message.chat_id,
         text="Нажми «🔥 Старт», чтобы открыть витрину подарков.",
-        reply_markup=start_kb
+        reply_markup=start_kb,
     )
 
 
 async def start_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработка нажатия на «🔥 Старт».
+    Даём кнопку, которая открывает WebApp внутри Telegram.
+    """
     kb = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Открыть витрину 🎁", url=BASE_URL)]]
+        [
+            [
+                InlineKeyboardButton(
+                    text="Открыть витрину 🎁",
+                    web_app=WebAppInfo(url=BASE_URL),
+                )
+            ]
+        ]
     )
+
     await update.message.reply_text(
         "Витрина готова. Открывай:",
-        reply_markup=kb
+        reply_markup=kb,
     )
+
+
+async def mod_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработка кнопок модерации чека:
+    - mod:confirm:<item_id>
+    - mod:reject:<item_id>
+    """
+    q = update.callback_query
+    await q.answer()
+
+    try:
+        _, action, item_id_str = q.data.split(":")
+        item_id = int(item_id_str)
+    except Exception:
+        await q.edit_message_caption(
+            caption=(q.message.caption or "") + "\n\n⚠️ Некорректные данные callback."
+        )
+        return
+
+    if action == "confirm":
+        set_item_status(item_id, "gifted")
+        suffix = "\n\n✅ Оплата подтверждена. Подарок отмечен как подаренный."
+    elif action == "reject":
+        set_item_status(item_id, "available")
+        suffix = "\n\n❌ Оплата отклонена. Подарок снова доступен."
+    else:
+        suffix = "\n\n⚠️ Неизвестное действие."
+
+    # Обновляем подпись к сообщению в мод-чате
+    old_caption = q.message.caption or ""
+    new_caption = old_caption + suffix
+
+    try:
+        await q.edit_message_caption(caption=new_caption)
+    except Exception as e:
+        print(f"Ошибка обновления подписи в мод-чате: {e}")
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /help."""
     await update.message.reply_text(
         "/start — запуск\n"
         "/help — помощь\n\n"
@@ -89,13 +150,24 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    """Точка входа для локального запуска бота."""
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CallbackQueryHandler(age_callback, pattern="^age:"))
     app.add_handler(CommandHandler("help", help_cmd))
+
+    # 18+
+    app.add_handler(CallbackQueryHandler(age_callback, pattern=r"^age:"))
+
+    # Модерация чеков
+    app.add_handler(CallbackQueryHandler(mod_callback, pattern=r"^mod:"))
+
+    # Кнопка "🔥 Старт"
     app.add_handler(
-        MessageHandler(filters.TEXT & filters.Regex(r"^🔥 Старт$"), start_button_handler)
+        MessageHandler(
+            filters.TEXT & filters.Regex(r"^🔥 Старт$"),
+            start_button_handler,
+        )
     )
 
     print("✅ Bot started (polling)")

@@ -17,23 +17,48 @@
   <div class="container">
 
     <header class="header">
-  <div class="logo-wrap">
-    <img src="/static/img/af_logo.png" class="logo" alt="AF Logo" />
-  </div>
-  <h1 class="title">ПОДАРКИ ДЛЯ ГОСПОЖИ</h1>
-  <p class="subtitle">Выбери дар.</p>
-</header>
+      <div class="logo-wrap">
+        <img src="/static/img/af_logo.png" class="logo" alt="AF Logo" />
+      </div>
+      <h1 class="title">ПОДАРКИ ДЛЯ ГОСПОЖИ</h1>
+      <p class="subtitle">Выбери дар.</p>
+    </header>
 
     <section class="grid">
       {% for item in items %}
-      <a href="/item/{{ item.id }}" class="card">
-        <div class="card-image">
-          <img src="{{ item.image }}" alt="{{ item.title }}">
-        </div>
-        <div class="card-title">{{ item.title }}</div>
-        <div class="card-price">{{ item.price }} ₽</div>
-        <button class="gold-btn">Подарить</button>
-      </a>
+        {# статус берём из state.json; по умолчанию — available #}
+        {% set st = item.status or "available" %}
+
+        {% if st == "available" %}
+          <a href="/item/{{ item.id }}" class="card">
+            <div class="card-image">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+            </div>
+            <div class="card-title">{{ item.title }}</div>
+            <div class="card-price">{{ item.price }} ₽</div>
+            <button class="gold-btn">Подарить</button>
+          </a>
+
+        {% elif st == "pending" %}
+          <a href="/item/{{ item.id }}" class="card card-pending">
+            <div class="card-image">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+            </div>
+            <div class="card-title">{{ item.title }}</div>
+            <div class="card-price">{{ item.price }} ₽</div>
+            <button class="gold-btn disabled">Идёт проверка оплаты</button>
+          </a>
+
+        {% elif st == "gifted" %}
+          <a href="/item/{{ item.id }}" class="card card-gifted">
+            <div class="card-image">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+            </div>
+            <div class="card-title">{{ item.title }}</div>
+            <div class="card-price">{{ item.price }} ₽</div>
+            <button class="gold-btn disabled">Подарок подарен</button>
+          </a>
+        {% endif %}
       {% endfor %}
     </section>
 
