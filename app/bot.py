@@ -1,5 +1,4 @@
 from pathlib import Path
-import requests
 
 from telegram import (
     Update,
@@ -18,7 +17,8 @@ from telegram.ext import (
     filters,
 )
 
-from .config import BOT_TOKEN, BASE_URL, ADMIN_API_PASSWORD
+from .config import BOT_TOKEN, BASE_URL
+from .storage import set_item_status  # 🔥 Пишем сразу в state.json
 
 # Базовая папка этого модуля (app/)
 BASE_DIR = Path(__file__).resolve().parent
@@ -108,44 +108,32 @@ async def mod_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Обработка кнопок модерации чека:
     - mod:confirm:<item_id>
     - mod:reject:<item_id>
+    Пишем статус товара напрямую в state.json через storage.set_item_status.
     """
     q = update.callback_query
+    print(f"[MOD CALLBACK] data = {q.data}")
     await q.answer()
 
-    data = q.data or ""
-    print(f"[MOD CALLBACK] data = {data}")  # чтобы видеть в консоли
-
+    # Разбираем callback_data
     try:
-        _, action, item_id_str = data.split(":")
+        _, action, item_id_str = q.data.split(":")
         item_id = int(item_id_str)
-    except Exception:
+    except Exception as e:
+        print(f"[MOD CALLBACK] parse error: {e}")
         await q.edit_message_caption(
             caption=(q.message.caption or "") + "\n\n⚠️ Некорректные данные callback."
         )
         return
 
+    # Решаем, какой статус выставить
     if action == "confirm":
-        new_status = "gifted"
+        set_item_status(item_id, "gifted")
         suffix = "\n\n✅ Оплата подтверждена. Подарок отмечен как подаренный."
     elif action == "reject":
-        new_status = "available"
+        set_item_status(item_id, "available")
         suffix = "\n\n❌ Оплата отклонена. Подарок снова доступен."
     else:
-        new_status = None
         suffix = "\n\n⚠️ Неизвестное действие."
-
-    if new_status and ADMIN_API_PASSWORD:
-        try:
-            api_url = BASE_URL.rstrip("/") + "/admin/update_status"
-            payload = {
-                "item_id": item_id,
-                "status": new_status,
-                "password": ADMIN_API_PASSWORD,
-            }
-            resp = requests.post(api_url, json=payload, timeout=10)
-            print(f"[ADMIN API] {resp.status_code} {resp.text}")
-        except Exception as e:
-            print(f"Ошибка вызова admin/update_status: {e}")
 
     # Обновляем подпись к сообщению в мод-чате
     old_caption = q.message.caption or ""
@@ -167,7 +155,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    """Точка входа для локального запуска бота."""
+    """Точка входа для запуска бота (локально и на Render)."""
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_cmd))
