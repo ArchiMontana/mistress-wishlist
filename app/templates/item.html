@@ -16,16 +16,10 @@
 <body class="velvet-bg">
   <div class="container">
 
-    <a href="/" class="back-link">← Назад к витрине</a>
+    <a href="/{% if tg_id %}?tg_id={{ tg_id }}{% if tg_username %}&tg_username={{ tg_username }}{% endif %}{% endif %}" class="back-link">← Назад к витрине</a>
 
     <h1 class="title">{{ item.title }}</h1>
     <p class="subtitle">Подарок для Госпожи</p>
-
-    {% if message %}
-      <div class="info-banner">
-        {{ message }}
-      </div>
-    {% endif %}
 
     <div class="card big-card">
       <div class="card-image-big">
@@ -48,6 +42,9 @@
 
       <form action="/upload_receipt" method="post" enctype="multipart/form-data">
         <input type="hidden" name="item_id" value="{{ item.id }}">
+        <input type="hidden" name="tg_id" value="{{ tg_id or '' }}">
+        <input type="hidden" name="tg_username" value="{{ tg_username or '' }}">
+
         <p>Прикрепи чек в формате PDF:</p>
 
         <input type="file" name="file" accept="application/pdf" required />

@@ -26,11 +26,10 @@
 
     <section class="grid">
       {% for item in items %}
-        {# статус берём из state.json; по умолчанию — available #}
         {% set st = item.status or "available" %}
 
         {% if st == "available" %}
-          <a href="/item/{{ item.id }}" class="card">
+          <a href="/item/{{ item.id }}{% if tg_id %}?tg_id={{ tg_id }}{% if tg_username %}&tg_username={{ tg_username }}{% endif %}{% endif %}" class="card">
             <div class="card-image">
               <img src="{{ item.image }}" alt="{{ item.title }}">
             </div>
@@ -40,7 +39,7 @@
           </a>
 
         {% elif st == "pending" %}
-          <a href="/item/{{ item.id }}" class="card card-pending">
+          <a href="/item/{{ item.id }}{% if tg_id %}?tg_id={{ tg_id }}{% if tg_username %}&tg_username={{ tg_username }}{% endif %}{% endif %}" class="card card-pending">
             <div class="card-image">
               <img src="{{ item.image }}" alt="{{ item.title }}">
             </div>
@@ -50,7 +49,7 @@
           </a>
 
         {% elif st == "gifted" %}
-          <a href="/item/{{ item.id }}" class="card card-gifted">
+          <a href="/item/{{ item.id }}{% if tg_id %}?tg_id={{ tg_id }}{% if tg_username %}&tg_username={{ tg_username }}{% endif %}{% endif %}" class="card card-gifted">
             <div class="card-image">
               <img src="{{ item.image }}" alt="{{ item.title }}">
             </div>

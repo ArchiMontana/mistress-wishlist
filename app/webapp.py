@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .config import BOT_TOKEN, MOD_CHAT_ID
+from .config import BOT_TOKEN, MOD_CHAT_ID, ADMIN_API_PASSWORD
 from .storage import get_item_status, set_item_status
 
 app = FastAPI()
@@ -117,6 +117,10 @@ def get_item_by_id(item_id: int):
 # Главная страница
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    # читаем tg_id / tg_username из query-параметров
+    tg_id = request.query_params.get("tg_id")
+    tg_username = request.query_params.get("tg_username")
+
     # Подмешиваем статус к каждому товару
     items_with_status = []
     for item in ITEMS:
@@ -125,7 +129,12 @@ async def index(request: Request):
 
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "items": items_with_status},
+        {
+            "request": request,
+            "items": items_with_status,
+            "tg_id": tg_id,
+            "tg_username": tg_username,
+        },
     )
 
 
@@ -138,12 +147,18 @@ async def item_page(item_id: int, request: Request):
 
     status = get_item_status(item_id)
 
+    # Протаскиваем tg_id / username дальше (из query в шаблон)
+    tg_id = request.query_params.get("tg_id")
+    tg_username = request.query_params.get("tg_username")
+
     return templates.TemplateResponse(
         "item.html",
         {
             "request": request,
             "item": item,
             "status": status,
+            "tg_id": tg_id,
+            "tg_username": tg_username,
         },
     )
 
@@ -151,9 +166,10 @@ async def item_page(item_id: int, request: Request):
 # Обработка загрузки чека
 @app.post("/upload_receipt")
 async def upload_receipt(
-    request: Request,
     item_id: str = Form(...),
     file: UploadFile = File(...),
+    tg_id: str | None = Form(None),
+    tg_username: str | None = Form(None),
 ):
     item_id_int = int(item_id)
     item = get_item_by_id(item_id_int)
@@ -163,8 +179,7 @@ async def upload_receipt(
     # Проверяем текущий статус
     current_status = get_item_status(item_id_int)
     if current_status in ("pending", "gifted"):
-        # Просто возвращаем пользователя на страницу товара —
-        # там он увидит актуальный статус.
+        # просто возвращаемся к карточке с тем же статусом
         return RedirectResponse(
             url=f"/item/{item_id_int}",
             status_code=303,
@@ -186,6 +201,13 @@ async def upload_receipt(
     # Ставим статус "в обработке"
     set_item_status(item_id_int, "pending")
 
+    # Подпись, включая отправителя, если есть
+    user_part = ""
+    if tg_username:
+        user_part = f"\nОт: @{tg_username}"
+    elif tg_id:
+        user_part = f"\nОт пользователя ID: {tg_id}"
+
     # Шлём в мод-чат документ с кнопками
     if BOT_TOKEN and MOD_CHAT_ID:
         try:
@@ -195,6 +217,7 @@ async def upload_receipt(
                 f"Новый чек по подарку #{item_id_int}\n"
                 f"{item['title']}\n\n"
                 f"Статус: на проверке ✅"
+                f"{user_part}"
             )
 
             keyboard = {
@@ -223,12 +246,35 @@ async def upload_receipt(
                 }
                 requests.post(telegram_api_url, data=data, files=files, timeout=20)
         except Exception as e:
-            # В лог можно вывести ошибку, но пользователю не палимся
             print(f"Ошибка отправки чека в мод-чат: {e}")
 
-    # После успешной загрузки чека — возвращаем пользователя
-    # на страницу товара, где он уже увидит статус "идёт проверка".
+    # Возвращаем пользователя обратно на страницу товара
+    # (чтобы он увидел статус "идёт проверка оплаты")
     return RedirectResponse(
         url=f"/item/{item_id_int}",
         status_code=303,
     )
+
+
+# --- Админ-API для обновления статуса (бот дёргает этот эндпоинт) ---
+
+
+@app.post("/admin/update_status")
+async def admin_update_status(
+    item_id: int = Form(...),
+    new_status: str = Form(...),
+    admin_password: str = Form(...),
+):
+    """
+    Эндпоинт дергается ботом при нажатии кнопок:
+    - confirm -> gifted
+    - reject  -> available
+    """
+    if not ADMIN_API_PASSWORD or admin_password != ADMIN_API_PASSWORD:
+        return HTMLResponse("Forbidden", status_code=403)
+
+    if new_status not in ("available", "pending", "gifted"):
+        return HTMLResponse("Bad status", status_code=400)
+
+    set_item_status(item_id, new_status)
+    return {"status": "ok", "item_id": item_id, "new_status": new_status}
