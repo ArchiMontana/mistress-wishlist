@@ -3,12 +3,12 @@ import time
 import json
 
 import requests
-from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .config import BOT_TOKEN, MOD_CHAT_ID, ADMIN_API_PASSWORD
+from .config import BOT_TOKEN, MOD_CHAT_ID
 from .storage import get_item_status, set_item_status
 
 app = FastAPI()
@@ -151,22 +151,24 @@ async def item_page(item_id: int, request: Request):
 # Обработка загрузки чека
 @app.post("/upload_receipt")
 async def upload_receipt(
+    request: Request,
     item_id: str = Form(...),
     file: UploadFile = File(...),
 ):
     item_id_int = int(item_id)
     item = get_item_by_id(item_id_int)
     if not item:
-        return {"status": "error", "reason": "item_not_found"}
+        return HTMLResponse("Товар не найден", status_code=404)
 
     # Проверяем текущий статус
     current_status = get_item_status(item_id_int)
     if current_status in ("pending", "gifted"):
-        return {
-            "status": "already_reserved",
-            "item_id": item_id_int,
-            "state": current_status,
-        }
+        # Просто возвращаем пользователя на страницу товара —
+        # там он увидит актуальный статус.
+        return RedirectResponse(
+            url=f"/item/{item_id_int}",
+            status_code=303,
+        )
 
     # Сохраняем чек на диск
     receipts_dir = Path("data") / "receipts"
@@ -181,7 +183,7 @@ async def upload_receipt(
     with filepath.open("wb") as f:
         f.write(content)
 
-    # Ставим статус "в обработке" на Render
+    # Ставим статус "в обработке"
     set_item_status(item_id_int, "pending")
 
     # Шлём в мод-чат документ с кнопками
@@ -221,48 +223,12 @@ async def upload_receipt(
                 }
                 requests.post(telegram_api_url, data=data, files=files, timeout=20)
         except Exception as e:
+            # В лог можно вывести ошибку, но пользователю не палимся
             print(f"Ошибка отправки чека в мод-чат: {e}")
 
-    return {
-        "status": "ok",
-        "item_id": item_id_int,
-        "filename": filename,
-        "state": "pending",
-    }
-
-
-# --- Админ-эндпоинт для бота: обновить статус товара ---
-@app.post("/admin/update_status")
-async def admin_update_status(payload: dict):
-    """
-    Вызывается ТОЛЬКО ботом.
-    Ожидает JSON:
-    {
-        "item_id": 1,
-        "status": "gifted" | "available" | "pending",
-        "password": "секрет"
-    }
-    """
-    if not ADMIN_API_PASSWORD:
-        raise HTTPException(status_code=500, detail="Admin API is disabled")
-
-    password = payload.get("password")
-    if password != ADMIN_API_PASSWORD:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    try:
-        item_id = int(payload.get("item_id"))
-    except Exception:
-        raise HTTPException(status_code=400, detail="Bad item_id")
-
-    status = payload.get("status")
-    if status not in ("available", "pending", "gifted"):
-        raise HTTPException(status_code=400, detail="Bad status")
-
-    if not get_item_by_id(item_id):
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    # Обновляем состояние на Render
-    set_item_status(item_id, status)
-
-    return {"ok": True, "item_id": item_id, "status": status}
+    # После успешной загрузки чека — возвращаем пользователя
+    # на страницу товара, где он уже увидит статус "идёт проверка".
+    return RedirectResponse(
+        url=f"/item/{item_id_int}",
+        status_code=303,
+    )
