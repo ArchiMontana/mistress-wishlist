@@ -52,8 +52,8 @@ ITEMS = [
     },
     {
         "id": 6,
-        "title": "Свечи БДСМ низкотемпературные для Wax Play, розовые",
-        "price": "1 059",
+        "title": "Набор низкотемпературных свечей для WAXPLAY",
+        "price": "600",
         "image": "/static/items/item_6.jpg",
     },
     {
@@ -64,8 +64,8 @@ ITEMS = [
     },
     {
         "id": 8,
-        "title": "Вибратор вакуумный с язычком, розовый",
-        "price": "2 580",
+        "title": "Конфеты ручной работы",
+        "price": "698",
         "image": "/static/items/item_8.jpg",
     },
     {
@@ -76,8 +76,8 @@ ITEMS = [
     },
     {
         "id": 10,
-        "title": "БДСМ эротическое платье с задним декольте, чёрное",
-        "price": "1 449",
+        "title": "Букет алых роз",
+        "price": "8 000",
         "image": "/static/items/item_10.jpg",
     },
     {
@@ -100,8 +100,8 @@ ITEMS = [
     },
     {
         "id": 14,
-        "title": "Poppers Возбудитель усилитель оргазма BDSM red 10 мл",
-        "price": "626",
+        "title": "Martini Prosecco DOC Treviso Brut, 0.75 л",
+        "price": "2300",
         "image": "/static/items/item_14.jpg",
     },
 ]
