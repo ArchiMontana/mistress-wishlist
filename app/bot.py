@@ -1,4 +1,5 @@
 from pathlib import Path
+import requests
 
 from telegram import (
     Update,
@@ -17,8 +18,7 @@ from telegram.ext import (
     filters,
 )
 
-from .config import BOT_TOKEN, BASE_URL
-from .storage import set_item_status
+from .config import BOT_TOKEN, BASE_URL, ADMIN_API_PASSWORD
 
 # Базовая папка этого модуля (app/)
 BASE_DIR = Path(__file__).resolve().parent
@@ -112,8 +112,11 @@ async def mod_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
+    data = q.data or ""
+    print(f"[MOD CALLBACK] data = {data}")  # чтобы видеть в консоли
+
     try:
-        _, action, item_id_str = q.data.split(":")
+        _, action, item_id_str = data.split(":")
         item_id = int(item_id_str)
     except Exception:
         await q.edit_message_caption(
@@ -122,13 +125,27 @@ async def mod_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == "confirm":
-        set_item_status(item_id, "gifted")
+        new_status = "gifted"
         suffix = "\n\n✅ Оплата подтверждена. Подарок отмечен как подаренный."
     elif action == "reject":
-        set_item_status(item_id, "available")
+        new_status = "available"
         suffix = "\n\n❌ Оплата отклонена. Подарок снова доступен."
     else:
+        new_status = None
         suffix = "\n\n⚠️ Неизвестное действие."
+
+    if new_status and ADMIN_API_PASSWORD:
+        try:
+            api_url = BASE_URL.rstrip("/") + "/admin/update_status"
+            payload = {
+                "item_id": item_id,
+                "status": new_status,
+                "password": ADMIN_API_PASSWORD,
+            }
+            resp = requests.post(api_url, json=payload, timeout=10)
+            print(f"[ADMIN API] {resp.status_code} {resp.text}")
+        except Exception as e:
+            print(f"Ошибка вызова admin/update_status: {e}")
 
     # Обновляем подпись к сообщению в мод-чате
     old_caption = q.message.caption or ""

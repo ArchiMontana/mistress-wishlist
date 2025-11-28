@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .config import BOT_TOKEN, MOD_CHAT_ID
+from .config import BOT_TOKEN, MOD_CHAT_ID, ADMIN_API_PASSWORD
 from .storage import get_item_status, set_item_status
 
 app = FastAPI()
@@ -17,9 +17,6 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
-# Папка для чеков
-RECEIPTS_DIR = Path("data") / "receipts"
-RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # === 14 карточек магазина ===
 ITEMS = [
@@ -137,7 +134,7 @@ async def index(request: Request):
 async def item_page(item_id: int, request: Request):
     item = get_item_by_id(item_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Товар не найден")
+        return HTMLResponse("Товар не найден", status_code=404)
 
     status = get_item_status(item_id)
 
@@ -147,82 +144,47 @@ async def item_page(item_id: int, request: Request):
             "request": request,
             "item": item,
             "status": status,
-            "message": None,
         },
     )
 
 
 # Обработка загрузки чека
-@app.post("/upload_receipt", response_class=HTMLResponse)
+@app.post("/upload_receipt")
 async def upload_receipt(
-    request: Request,
     item_id: str = Form(...),
     file: UploadFile = File(...),
 ):
-    # парсим id
-    try:
-        item_id_int = int(item_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Некорректный ID товара")
-
+    item_id_int = int(item_id)
     item = get_item_by_id(item_id_int)
     if not item:
-        raise HTTPException(status_code=404, detail="Товар не найден")
+        return {"status": "error", "reason": "item_not_found"}
 
+    # Проверяем текущий статус
     current_status = get_item_status(item_id_int)
+    if current_status in ("pending", "gifted"):
+        return {
+            "status": "already_reserved",
+            "item_id": item_id_int,
+            "state": current_status,
+        }
 
-    # если уже в процессе / подарен — не даём второй раз
-    if current_status == "pending":
-        return templates.TemplateResponse(
-            "item.html",
-            {
-                "request": request,
-                "item": item,
-                "status": current_status,
-                "message": "По этому подарку уже загружен чек, сейчас идёт проверка оплаты.",
-            },
-        )
+    # Сохраняем чек на диск
+    receipts_dir = Path("data") / "receipts"
+    receipts_dir.mkdir(parents=True, exist_ok=True)
 
-    if current_status == "gifted":
-        return templates.TemplateResponse(
-            "item.html",
-            {
-                "request": request,
-                "item": item,
-                "status": current_status,
-                "message": "Этот подарок уже отмечен как подаренный. "
-                           "Выбери, пожалуйста, другой дар.",
-            },
-        )
-
-    # проверяем тип файла
-    if file.content_type != "application/pdf":
-        status = get_item_status(item_id_int)
-        return templates.TemplateResponse(
-            "item.html",
-            {
-                "request": request,
-                "item": item,
-                "status": status,
-                "message": "Пожалуйста, прикрепи чек в формате PDF.",
-            },
-        )
-
-    # сохраняем чек на диск
     ts = int(time.time())
     safe_name = file.filename.replace(" ", "_")
     filename = f"item_{item_id_int}_{ts}_{safe_name}"
-    filepath = RECEIPTS_DIR / filename
+    filepath = receipts_dir / filename
 
     content = await file.read()
     with filepath.open("wb") as f:
         f.write(content)
 
-    # ставим статус pending (резерв)
+    # Ставим статус "в обработке" на Render
     set_item_status(item_id_int, "pending")
-    new_status = get_item_status(item_id_int)
 
-    # отправляем в мод-чат
+    # Шлём в мод-чат документ с кнопками
     if BOT_TOKEN and MOD_CHAT_ID:
         try:
             telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
@@ -249,7 +211,9 @@ async def upload_receipt(
             }
 
             with filepath.open("rb") as f:
-                files = {"document": (filename, f, "application/pdf")}
+                files = {
+                    "document": (filename, f, "application/pdf"),
+                }
                 data = {
                     "chat_id": str(MOD_CHAT_ID),
                     "caption": caption,
@@ -259,14 +223,46 @@ async def upload_receipt(
         except Exception as e:
             print(f"Ошибка отправки чека в мод-чат: {e}")
 
-    # возвращаем HTML-страницу товара, а НЕ JSON
-    return templates.TemplateResponse(
-        "item.html",
-        {
-            "request": request,
-            "item": item,
-            "status": new_status,
-            "message": "Чек загружен и отправлен на проверку. "
-                       "Статус подарка обновится после решения администратора.",
-        },
-    )
+    return {
+        "status": "ok",
+        "item_id": item_id_int,
+        "filename": filename,
+        "state": "pending",
+    }
+
+
+# --- Админ-эндпоинт для бота: обновить статус товара ---
+@app.post("/admin/update_status")
+async def admin_update_status(payload: dict):
+    """
+    Вызывается ТОЛЬКО ботом.
+    Ожидает JSON:
+    {
+        "item_id": 1,
+        "status": "gifted" | "available" | "pending",
+        "password": "секрет"
+    }
+    """
+    if not ADMIN_API_PASSWORD:
+        raise HTTPException(status_code=500, detail="Admin API is disabled")
+
+    password = payload.get("password")
+    if password != ADMIN_API_PASSWORD:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        item_id = int(payload.get("item_id"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad item_id")
+
+    status = payload.get("status")
+    if status not in ("available", "pending", "gifted"):
+        raise HTTPException(status_code=400, detail="Bad status")
+
+    if not get_item_by_id(item_id):
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Обновляем состояние на Render
+    set_item_status(item_id, status)
+
+    return {"ok": True, "item_id": item_id, "status": status}
