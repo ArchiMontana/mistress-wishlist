@@ -14,23 +14,22 @@ def load_state() -> Dict[str, Any]:
     Чтение state.json. Если файла нет или он битый — возвращаем дефолт.
     """
     if not STATE_FILE.exists():
-        save_state(DEFAULT_STATE)
         return DEFAULT_STATE.copy()
 
     try:
         with STATE_FILE.open("r", encoding="utf-8") as f:
             data = json.load(f)
-        if "items" not in data or not isinstance(data["items"], dict):
-            data["items"] = {}
-        return data
-    except Exception:
-        # Если что-то пошло не так — не ломаемся, просто возвращаем дефолт
+            if not isinstance(data, dict):
+                raise ValueError("state.json is not a dict")
+            return data
+    except Exception as e:
+        print(f"[storage] Ошибка чтения {STATE_FILE}: {e}")
         return DEFAULT_STATE.copy()
 
 
 def save_state(state: Dict[str, Any]) -> None:
     """
-    Записываем state.json.
+    Сохраняем state.json.
     """
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with STATE_FILE.open("w", encoding="utf-8") as f:

@@ -14,11 +14,15 @@ from .storage import get_item_status, set_item_status
 app = FastAPI()
 
 # Подключаем статику и шаблоны
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "templates"
 
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# === 14 карточек магазина ===
+# --- "База данных" товаров (можно было бы читать из JSON, но пока захардкодим) ---
+
 ITEMS = [
     {
         "id": 1,
@@ -138,16 +142,15 @@ async def index(request: Request):
     )
 
 
-# Страница товара
+# Страница конкретного товара
 @app.get("/item/{item_id}", response_class=HTMLResponse)
-async def item_page(item_id: int, request: Request):
+async def item_page(request: Request, item_id: int):
     item = get_item_by_id(item_id)
     if not item:
         return HTMLResponse("Товар не найден", status_code=404)
 
     status = get_item_status(item_id)
 
-    # Протаскиваем tg_id / username дальше (из query в шаблон)
     tg_id = request.query_params.get("tg_id")
     tg_username = request.query_params.get("tg_username")
 
@@ -163,7 +166,7 @@ async def item_page(item_id: int, request: Request):
     )
 
 
-# Обработка загрузки чека
+# Загрузка чека
 @app.post("/upload_receipt")
 async def upload_receipt(
     item_id: str = Form(...),
@@ -185,18 +188,15 @@ async def upload_receipt(
             status_code=303,
         )
 
-    # Сохраняем чек на диск
+    # Сохраняем PDF на диск (опционально)
     receipts_dir = Path("data") / "receipts"
     receipts_dir.mkdir(parents=True, exist_ok=True)
-
-    ts = int(time.time())
-    safe_name = file.filename.replace(" ", "_")
-    filename = f"item_{item_id_int}_{ts}_{safe_name}"
+    timestamp = int(time.time())
+    filename = f"receipt_{item_id_int}_{timestamp}.pdf"
     filepath = receipts_dir / filename
 
-    content = await file.read()
     with filepath.open("wb") as f:
-        f.write(content)
+        f.write(await file.read())
 
     # Ставим статус "в обработке"
     set_item_status(item_id_int, "pending")
@@ -220,7 +220,8 @@ async def upload_receipt(
                 f"{user_part}"
             )
 
-            keyboard = {
+            # inline-кнопки для модерации
+            reply_markup = {
                 "inline_keyboard": [
                     [
                         {
@@ -240,9 +241,9 @@ async def upload_receipt(
                     "document": (filename, f, "application/pdf"),
                 }
                 data = {
-                    "chat_id": str(MOD_CHAT_ID),
+                    "chat_id": MOD_CHAT_ID,
                     "caption": caption,
-                    "reply_markup": json.dumps(keyboard, ensure_ascii=False),
+                    "reply_markup": json.dumps(reply_markup, ensure_ascii=False),
                 }
                 requests.post(telegram_api_url, data=data, files=files, timeout=20)
         except Exception as e:
@@ -257,7 +258,6 @@ async def upload_receipt(
 
 
 # --- Админ-API для обновления статуса (бот дёргает этот эндпоинт) ---
-
 
 @app.post("/admin/update_status")
 async def admin_update_status(
